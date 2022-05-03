@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>home</title>
+    <script>
+        
+    </script>
+</head>
+<body>
+<button>测试</button>
+    <script>
+        //测试链接
+
+        let btn = document.getElementsByTagName("button")[0];
+        btn.onclick = function (){
+            let request = Req({"test":"connectTest"});
+            request.onreadystatechange = function (){
+                if(request.readyState===4&&request.status===200){
+                    alert(request.responseText);
+                }
+            }
+        }
+    </script>
+<p id="p">Dir</p>
+<div>
+    <li class="li" value="1">C:/</li>
+    <li class="li" value="2">D:/</li>
+    <li class="li" value="3">E:/</li>
+    <li class="li" value="4">F:/</li>
+</div>
+<li>--------------------------------------------------------------------------------</li>
+<button style="position: absolute;left: 450px;top:250px;z-index: 2">后退</button>
+<div>
+
+</div>
+<script>
+    let div = document.getElementsByTagName("div")[0];
+    let div2 = document.getElementsByTagName("div")[1];
+    let btn2 = document.getElementsByTagName("button")[1];
+    let p1 = document.getElementById("p");
+    //后退按钮
+    btn2.onclick = function (){
+        let pan = p1.innerHTML;
+        if(pan ==="C:/"||pan==="D:/"||pan==="E:/"||pan==="F:/"){
+            return;
+        }
+        let request = Req({"back":1});
+        request.onreadystatechange = function (){
+            if(request.readyState===4&&request.status===200){
+                if(request.responseText!==""){
+                    let re = /.+(?=(\/.+\/))/;
+                    if(re.test(p1.innerHTML))
+                        p1.innerHTML = re.exec(p1.innerHTML)[0].toString()+"/";
+                    let obj = JSON.parse(request.responseText);
+                    div2.innerHTML = null;
+                    handler(obj);
+                }
+            }
+        }
+    }
+    //盘访问
+
+    div.onclick = function (event){
+        if(event.target.className==="li"){
+            let request = Req({"pan":event.target.value});
+            request.onreadystatechange = function (){
+                if(request.readyState===4&&request.status===200){
+                    p1.innerHTML = event.target.innerHTML;
+                    let obj = JSON.parse(request.responseText);
+                    div2.innerHTML = null;
+                    handler(obj);
+                }
+            }
+        }
+    }
+    //路径访问
+
+    div2.onclick = function (event){
+        if(event.target.className === "p"){
+            if(event.target.parentNode.id==="dir"){
+                let testReq = {};
+                testReq[event.target.parentNode.id] = event.target.innerHTML;
+                let request = Req(testReq);
+                request.onreadystatechange = function (){
+                    if(request.readyState===4&&request.status===200){
+                        div2.innerHTML = null;
+                        p1.innerHTML += event.target.innerHTML+"\/";
+                        let obj = JSON.parse(request.responseText);
+                        handler(obj);
+                    }
+                }
+            }
+        }
+    }
+    //函数
+    //
+    //连接头设置
+
+    let Req = function (obj){
+        let request = new XMLHttpRequest();
+        request.open("POST",{{with .URL}}
+                {{.}}{{else}}"http://localhost:8080/handler"{{end}},true);
+        request.setRequestHeader('content-type', 'application/json');
+        request.send(JSON.stringify(obj));
+        return request;
+    }
+
+    let Req2 = function (obj){
+        let request = new XMLHttpRequest();
+        request.open("POST",{{with .URL}}{{.}}{{else}}"http://localhost/handler"{{end}},true);
+        request.responseType = "blob";
+        request.crossOrigin = "anonymous";
+        request.send(JSON.stringify(obj));
+        return request;
+    }
+    //路径数据处理
+
+    let handler = function (obj){
+        for(let kind in obj){
+            let li = document.createElement("dir");
+            li.innerHTML = kind+"---------->";
+            li.id = kind;
+            div2.appendChild(li);
+            for(let i=0;i<obj[kind].length;i++){
+                let p = document.createElement("p");
+                p.className = "p";
+                p.id = "0";
+                p.innerHTML = obj[kind][i].Name;
+                //图片处理
+
+                if(obj[kind][i].Bytes!==null){
+                    let img = document.createElement("img")
+                    img.alt = kind;
+                    img.id = obj[kind][i].Name;
+                    img.className = "img";
+                    img.crossOrigin = "anonymous";
+                    img.onclick = function (event){
+                        loadFile(event);
+                    }
+                    if(obj[kind][i].Bytes==="ZXJyb3I="){
+                        img.title = "不支持预览或图片格式不正确\n";
+                    }
+                    img.title += "MB:"+Number(obj[kind][i].Size/1024/1024).toFixed(2)+"B:"+obj[kind][i].Size;
+                    //jpg get
+                    let type = kind;
+                    if(type==="mp4"){
+                        type="jpg";
+                    }
+                    if(type==="txt"){
+                        type="png";
+                    }
+                    img.src = `data:image/`+type+`;base64,`+obj[kind][i].Bytes;
+                    img.onload = function (){
+                        if(img.naturalWidth<800||img.naturalHeight<800){
+                            if(img.naturalWidth<200||img.naturalHeight<200){
+                                img.width =img.naturalWidth*2;
+                                img.height = img.naturalHeight*2;
+                            }else {
+                                img.width =img.naturalWidth/2;
+                                img.height = img.naturalHeight/2;
+                            }
+                        }else {
+                            img.width =img.naturalWidth/3;
+                            img.height = img.naturalHeight/3;
+                        }
+                    }
+                    p.appendChild(img);
+                }
+                li.appendChild(p);
+            }
+        }
+    }
+    //加载文件
+
+    let loadFile = function (event){
+        if(event.target.className==="img"){
+            if(event.target.alt==="ok"){
+                return;
+            }
+            //判断是否是视频或文档
+
+            if(event.target.alt==="mp4"||event.target.alt==="txt"){
+                loadBigFile(event);
+                return;
+            }
+            let testReq = {};
+            testReq[event.target.alt] = event.target.id;
+            let request = Req2(testReq);
+            event.target.alt = "ok";
+            request.onreadystatechange = function (){
+                if(request.status===200&&request.readyState===4){
+                    if(request.response===null){
+                        alert("图片加载错误");
+                        return;
+                    }
+                    let file = new FileReader();
+                    file.readAsDataURL(request.response);
+                    file.onload = function (e){
+                        event.target.src = e.target.result;
+                    }
+
+                }
+            }
+        }
+    }
+    //访问视频或文档
+    let loadBigFile = function (event){
+        if(event.target.alt==="ok"){
+            return;
+        }
+        if(event.target.alt==="txt"){
+            //00
+            let request = Req({"txt":event.target.id})
+            request.onreadystatechange = function (){
+                if(request.status===200&&request.readyState===4){
+                    if(request.response===null){
+                        return;
+                    }
+                    let p = document.createElement("p")
+                    p.innerText = request.responseText;
+                    event.target.parentNode.appendChild(p);
+                    event.target.parentNode.removeChild(event.target);
+                }
+            }
+        }
+        if(event.target.alt==="mp4"){
+            let request = Req2({"mp4":event.target.id});
+            request.onload = function (){
+                if(request.response===null){
+                    alert("视频加载错误");
+                    return;
+                }
+                let file = new FileReader();
+                file.readAsDataURL(request.response);
+                file.onload = function (e){
+                    let mp4 = document.createElement("video");
+                    mp4.type = "video/mp4";
+                    mp4.height = 300;
+                    mp4.video = 400;
+                    mp4.controls = true;
+                    let source = document.createElement("source");
+                    source.src = e.target.result+"";
+                    mp4.appendChild(source);
+                    event.target.parentNode.appendChild(mp4);
+                    event.target.parentNode.removeChild(event.target);
+                }
+            }
+        }
+        event.target.alt="ok";
+    }
+</script>
+</body>
+</html>
